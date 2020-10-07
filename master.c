@@ -12,12 +12,14 @@
 /*------------------------------------------------GLOBALS AND PROTOTYPES-------------------------------*/
 /*-----------------------------------------------------------------------------------------------------*/
 
-#define PERMS (S_IRUSR | S_IWUSR)
+#define PERMS (S_IRUSR | S_IWUSR)	//Shared memory permissions
+#define MAXPROCESSESCAP 20;		//Cap on amount of child processes in the system at any given time
 
 //Prototypes
 void read_the_clock();
 int free_memory();
 void sighandler(int);
+void forkMultipleProcesses();
 
 //Shared memory global
 typedef struct{
@@ -36,6 +38,9 @@ pid_t pid;				//child process
 int max_total_cp = 4;
 int concurr_children = 2;
 int forced_time_quit = 100;
+
+
+
 
 
 
@@ -77,10 +82,8 @@ int main(int argc, char* argv[]) {
 	
 
 	//Captures user input 
-	int opt; 
-	int max_total_cp = 4;
-	int concurr_children = 2;
-	int forced_time_quit = 100;
+	int opt;
+
 
 	//Use getopt funct to parse arguments
 	while((opt = getopt(argc, argv, "hn:s:t:")) !=-1){
@@ -102,61 +105,46 @@ int main(int argc, char* argv[]) {
 			//Indicate the maximum total of child processes master will ever create
 			case 'n': 
 				max_total_cp = atoi(optarg);
+				if(max_total_cp > 20 || max_total_cp <= 0) {
+					printf("\nERROR: Total processes in system must be between 1-20\n");
+					return 1;
+				}
 			break; 
 		
 			//Indicate the number of chilren allowed to exist in the system at the same time
 			case 's':
 				concurr_children = atoi(optarg); 
+				if(concurr_children <= 0) { 
+					printf("\nERROR: There must be at least 1 concurrent process\n");
+					return 1;
+				}
 			break;
 			
 			//The time in seconds after which the process will termiante, even if it has not finished
 			case 't': 
 				forced_time_quit = atoi(optarg);
+				if(forced_time_quit <= 0) { 
+					printf("\nERROR: Time must be at least 1\n");
+					return 1;
+				}
 			break;			 					
 			
 			//Invalid argument case
 			default: 
-				perror("\nERROR: Invalid option");
+				perror("\nERROR: Invalid option. Enter -h for help");
 				return 1;
 			break;
 		}
 	}
 
 
-	//Create child process
-	pid = fork(); 
-	
-	//If child was created
-	if(pid == 0) {
-		//Print processes id's
-		printf("\nChild process id is %u\n", getpid());
-		//The first fork sets the process_group_id where all other processes will be associated
-		shm_data_ptr->pgid = getpid();
-		printf("\n Stored process_group_id as :%d", shm_data_ptr->pgid);
-		printf("\nParent of child process id is %u\n", getppid());
-		printf("\nChild process will read the clock\n");
-		read_the_clock();
-		//sleep(1);
-		while(1);	//go into infinite loop to test parent termination
-	}
-	//If failed to create a new process then return with error message
-	else if(pid == - 1) {
-		perror("\nERROR: Could not create child process"); 
-	}
-	//Main (parent) process after fork succeeds
-	else { 
-		int returnStatus;
-		waitpid(pid, &returnStatus, 0);	//Parent process waits here for child to terminate
-
-		//Print process id's		
-		printf("\nParent of parent process is %u\n", getppid());
-		printf("\nParent process is %u\n", getpid());
-	
-		printf("\nParent will read the clock\n");
-		read_the_clock();	
+	//Fork multiple processes until maximum limit reached
+	int fork_number;
+	while(fork_number <= max_total_cp){
+		printf("\nFork count :%d\n", fork_number);
+		forkMultipleProcesses(fork_number++);
 	}
 
-			
 
 	//Capture input file containing strings to be tested
 	char* fileName = argv[optind];
@@ -184,6 +172,16 @@ int main(int argc, char* argv[]) {
 	
 	return 0;	
 }
+
+
+
+
+
+/*--------------------------------------------------FUNCTIONS--------------------------------------------*/
+/*-------------------------------------------------------------------------------------------------------*/
+/*-------------------------------------------------------------------------------------------------------*/
+
+
 
 //Algorithm for fetching current time is from techiedelight tutorial
 void read_the_clock() {
@@ -265,7 +263,47 @@ void sighandler(int signal){
 	free_memory();
 	exit(0);
 	
-//	while(wait(NULL) > 0);
+}
+
+void forkMultipleProcesses(int fork_number){
 	
-//	free_memory();	
+	//Create child process
+	pid = fork(); 
+	
+	//If child was created
+	if(pid == 0) {
+		//Print processes id's
+		printf("\nChild process id is %u\n", getpid());
+		//The first fork sets the process_group_id where all other processes will be associated
+		if(fork_number ==0){
+			shm_data_ptr->pgid = getpid();
+		}
+		//Group processes together
+		else{
+			setpgid(0, shm_data_ptr->pgid);
+		}
+		printf("\n Stored process_group_id as :%d", shm_data_ptr->pgid);
+		printf("\nParent of child process id is %u\n", getppid());
+		printf("\nChild process will read the clock\n");
+		read_the_clock();
+		sleep(1);
+		//while(1);	//go into infinite loop to test parent termination
+	}
+	//If failed to create a new process then return with error message
+	else if(pid == - 1) {
+		perror("\nERROR: Could not create child process"); 
+	}
+	//Main (parent) process after fork succeeds
+	else { 
+		int returnStatus;
+		waitpid(pid, &returnStatus, 0);	//Parent process waits here for child to terminate
+
+		//Print process id's		
+		//printf("\nParent of parent process is %u\n", getppid());
+		//printf("\nParent process is %u\n", getpid());
+	
+		printf("\nParent will read the clock\n");
+		read_the_clock();	
+	}
+
 }	
