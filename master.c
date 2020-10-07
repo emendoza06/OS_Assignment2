@@ -7,6 +7,7 @@
 #include <sys/wait.h>
 #include <sys/shm.h>
 #include <signal.h>
+#include <stdlib.h>
 
 /*------------------------------------------------GLOBALS AND PROTOTYPES-------------------------------*/
 /*-----------------------------------------------------------------------------------------------------*/
@@ -18,7 +19,7 @@ void read_the_clock();
 int free_memory();
 void sighandler(int);
 
-//Globals
+//Shared memory global
 typedef struct{
 	pid_t pgid;
 }shared_memory_data;
@@ -28,8 +29,13 @@ shared_memory_data *shm_data_ptr;
 //Memory globals
 shared_memory_data *shm_data_ptr;	//shared memory data pointer
 int shmid;				//shared memory segment id
+pid_t pid;				//child process
 
 
+//Default arguments if no user input
+int max_total_cp = 4;
+int concurr_children = 2;
+int forced_time_quit = 100;
 
 
 
@@ -118,7 +124,6 @@ int main(int argc, char* argv[]) {
 
 
 	//Create child process
-	pid_t pid;
 	pid = fork(); 
 	
 	//If child was created
@@ -234,6 +239,31 @@ void sighandler(int signal){
 	killpg(shm_data_ptr->pgid, SIGTERM);
 	printf("\nTime children processes killed:");
 	read_the_clock();
+
+	int status;
+	if(waitpid(pid, &status, 0) != -1) { 
+		if(WIFEXITED(status)){
+			int returned = WEXITSTATUS(status);
+			printf("\nExited normally with status %d\n", returned);
+		}
+		else if(WIFSIGNALED(status)){
+			int signum = WTERMSIG(status);
+			printf("Exited due to receiving signal %d\n", signum);
+		}
+		else if(WIFSTOPPED(status)){
+			int signum = WSTOPSIG(status);
+			printf("Stopped due to receiving signal %d\n", signum);
+		}
+		else { 
+			printf("Something strange happened\n");
+		}
+	}
+	else { 
+		perror("waitpid() failed");
+	}
+
+	free_memory();
+	exit(0);
 	
 //	while(wait(NULL) > 0);
 	
