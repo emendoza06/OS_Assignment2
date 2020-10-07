@@ -8,25 +8,34 @@
 #include <sys/shm.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <string.h>
+#include <getopt.h>
 
 /*------------------------------------------------GLOBALS AND PROTOTYPES-------------------------------*/
 /*-----------------------------------------------------------------------------------------------------*/
 
 #define PERMS (S_IRUSR | S_IWUSR)	//Shared memory permissions
-#define MAXPROCESSESCAP 20;		//Cap on amount of child processes in the system at any given time
+#define MAXPROCESSESCAP 20		//Cap on amount of child processes in the system at any given time
+
+
 
 //Prototypes
-void read_the_clock();
+void readTheClock();
 int free_memory();
 void sighandler(int);
 void forkMultipleProcesses();
+void storeWordsFromFile(char* fileName);
 
 //Shared memory global
 typedef struct{
+	int children;
+	char words[20][256];	//Assuming 20 words in file with length 256 max	
 	pid_t pgid;
+	int id;
+	int flags[20];
+	int turn;
 }shared_memory_data;
 
-shared_memory_data *shm_data_ptr;
 
 //Memory globals
 shared_memory_data *shm_data_ptr;	//shared memory data pointer
@@ -136,39 +145,30 @@ int main(int argc, char* argv[]) {
 			break;
 		}
 	}
+	
+	
+	//Capture input file containing strings to be tested
+	char* fileName = argv[optind];
+
+	
+	storeWordsFromFile(fileName);
 
 
 	//Fork multiple processes until maximum limit reached
-	int fork_number;
+/*	int fork_number;
 	while(fork_number <= max_total_cp){
 		printf("\nFork count :%d\n", fork_number);
 		forkMultipleProcesses(fork_number++);
-	}
+	}*/
 
-
-	//Capture input file containing strings to be tested
-	char* fileName = argv[optind];
-	
-	//Open the file
-	FILE *fp = fopen(fileName, "r");
-
-	//If file cannot be opened then return
-	if(fp ==0) { 
-		perror("\nERROR: Could not open file");
-		return 1;
-	}
-
-	//If file can be opened, then continue program
-	else { 
 
 
 /*--------------------------------EXEC PALIN------------------------------------*/
 /*------------------------------------------------------------------------------*/	
 	//Send to function the check for palindromes 
-	//execl("./palin", "palin", fileName, NULL);
+//	execl("./palin", "palin", 1, NULL);
 
 
-	}
 	
 	return 0;	
 }
@@ -184,7 +184,7 @@ int main(int argc, char* argv[]) {
 
 
 //Algorithm for fetching current time is from techiedelight tutorial
-void read_the_clock() {
+void readTheClock() {
 	//Variable to store time component
 	int hours, minutes, seconds;
 	//time_t is arithmetic time type
@@ -236,7 +236,7 @@ int free_memory(){
 void sighandler(int signal){
 	killpg(shm_data_ptr->pgid, SIGTERM);
 	printf("\nTime children processes killed:");
-	read_the_clock();
+	readTheClock();
 
 	int status;
 	if(waitpid(pid, &status, 0) != -1) { 
@@ -265,6 +265,7 @@ void sighandler(int signal){
 	
 }
 
+
 void forkMultipleProcesses(int fork_number){
 	
 	//Create child process
@@ -273,7 +274,7 @@ void forkMultipleProcesses(int fork_number){
 	//If child was created
 	if(pid == 0) {
 		//Print processes id's
-		printf("\nChild process id is %u\n", getpid());
+	//	printf("\nChild process pid is %u\n", getpid());
 		//The first fork sets the process_group_id where all other processes will be associated
 		if(fork_number ==0){
 			shm_data_ptr->pgid = getpid();
@@ -282,28 +283,77 @@ void forkMultipleProcesses(int fork_number){
 		else{
 			setpgid(0, shm_data_ptr->pgid);
 		}
-		printf("\n Stored process_group_id as :%d", shm_data_ptr->pgid);
-		printf("\nParent of child process id is %u\n", getppid());
-		printf("\nChild process will read the clock\n");
-		read_the_clock();
+	//	printf("\n Stored process_group_id as :%d", shm_data_ptr->pgid);
+	//	printf("\nParent of child process pid is %u\n", getppid());
+	//	printf("\nChild process going to palin\n");
+	//	read_the_clock();
 		sleep(1);
+		
+		//Before passing id to palin, need to convert argument to a string
+		char argument[256];
+		sprintf(argument, "%d", fork_number);
+		
+		execl("./palin", "palin", argument, NULL);
+	
 		//while(1);	//go into infinite loop to test parent termination
 	}
 	//If failed to create a new process then return with error message
-	else if(pid == - 1) {
+/*	else if(pid == - 1) {
 		perror("\nERROR: Could not create child process"); 
 	}
 	//Main (parent) process after fork succeeds
 	else { 
-		int returnStatus;
-		waitpid(pid, &returnStatus, 0);	//Parent process waits here for child to terminate
+		
+	//	int returnStatus;
+	//	waitpid(pid, &returnStatus, 0);	//Parent process waits here for child to terminate
 
 		//Print process id's		
 		//printf("\nParent of parent process is %u\n", getppid());
 		//printf("\nParent process is %u\n", getpid());
 	
-		printf("\nParent will read the clock\n");
-		read_the_clock();	
+		printf("\nParent will exit program\n");
+	//	read_the_clock();	
+		exit(0);
+	}*/
+
+}
+
+
+void storeWordsFromFile(char *fileName){
+//	printf("\n In store words from file function");
+	//Open file
+	FILE *fptr;
+	if((fptr = fopen(fileName, "r")) == NULL){
+		perror("\nERROR: Could not read file");
+		return;
 	}
 
+	//Index to words array
+	int i = 0; 
+
+	//Read strigs line by line from file and store into words array
+	while(fgets(shm_data_ptr->words[i], 256, fptr) != NULL){
+		printf("\nString read is:\n%s",shm_data_ptr->words[i]);
+
+		//Define terminating character
+		shm_data_ptr->words[i][strlen(shm_data_ptr->words[i]) -1] ='\0';
+		i++; //Increase index position by 1
+	}
+
+	//Code to go into each position of word array one by one 
+	//Each child process gets its own string, but there is a maximum limit to the amount of processes in system
+	int total_strings = max_total_cp;
+	int children = max_total_cp;
+	int index = 0;
+	while(index < total_strings){
+		//Assign an id to each child
+		shm_data_ptr->id = index;
+
+		forkMultipleProcesses(shm_data_ptr->id);
+	//	printf("\nWord is :%s", shm_data_ptr->words[index]);
+	//	printf("\nIs palindrome: %d", isPalindrome(words[index]));
+		index++;
+	}
+
+	fclose(fptr); 
 }	
