@@ -132,7 +132,12 @@ int main(int argc, char *argv[]) {
 		perror("\nERROR: Could not open file");
 		return 1;
 	}
-	fprintf(logFile, "%s %d %d %s\n", readTheClock(), getpid(), index, shm_data_ptr->words[index]);
+
+	time_t mytime = time(NULL);
+	char *time_str = ctime(&mytime);
+	time_str[strlen(time_str)-1] = '\0';
+
+	fprintf(logFile, "%s %d %d %s\n", time_str, getpid(), index, shm_data_ptr->words[index]);
 	fclose(logFile);
 
 

@@ -1,3 +1,9 @@
+/* NAME: Epharra Mendoza
+ * DATE: 10/7/2020
+ * ASSIGNMENT 2 OPERATING SYTEMS
+ * CS 4760
+ * */
+
 #include <stdio.h> 
 #include <unistd.h>
 #include <sys/types.h>
@@ -58,6 +64,7 @@ int forced_time_quit = 100;
 int main(int argc, char* argv[]) {
 	//library function to set a function to handle signal
 	signal(SIGINT, sighandler);
+//	signal(SIGALRM, exitfunc);
 	
 	//memory variables
 	int key; 
@@ -149,24 +156,28 @@ int main(int argc, char* argv[]) {
 	
 	//Capture input file containing strings to be tested
 	char* fileName = argv[optind];
+		
+	//Timer code
+/*	int sec = 0, trigger = forced_time_quit;
+	clock_t before = clock();
 
+	int doing = 0;
+	do{ 
+		if(doing == 0) { 
+			storeWordsFromFile(fileName);
+			doing = 1;
+		}
+		clock_t difference = clock() - before;
+		sec = difference * 10 / CLOCKS_PER_SEC;
+
+	}while( sec < trigger);	
 	
+	printf("\nTime's up");
+	killpg(shm_data_ptr->pgid, SIGTERM);
+	free_memory();*/
+		
+
 	storeWordsFromFile(fileName);
-
-
-	//Fork multiple processes until maximum limit reached
-/*	int fork_number;
-	while(fork_number <= max_total_cp){
-		printf("\nFork count :%d\n", fork_number);
-		forkMultipleProcesses(fork_number++);
-	}*/
-
-
-
-/*--------------------------------EXEC PALIN------------------------------------*/
-/*------------------------------------------------------------------------------*/	
-	//Send to function the check for palindromes 
-//	execl("./palin", "palin", 1, NULL);
 
 
 	
@@ -183,37 +194,6 @@ int main(int argc, char* argv[]) {
 
 
 
-//Algorithm for fetching current time is from techiedelight tutorial
-void readTheClock() {
-	//Variable to store time component
-	int hours, minutes, seconds;
-	//time_t is arithmetic time type
-	time_t now;
-	
-	//Obtain current time 
-	//time() returns the current time of the system as a time_t value
-	time(&now);	
-	
-	//localtime converts a time_t value to calendar time and returns a pointer to a tm structure with its members
-	//fille with the corresponding values 
-	struct tm *local = localtime(&now);
-
-	hours = local->tm_hour; 	//get hours since midnight(0-23)
-	minutes = local->tm_min;	//get minutes passed after the hour (0-59)
-	seconds = local->tm_sec;	//get seconds passed after minute (0-59)
-
-	//print local time 
-	if(hours < 12){		//before midday
-		printf("Time is : %02d:%02d:%02d am\n", hours, minutes, seconds); 
-	}
-	else if(hours == 12){
-		printf("Time is : %02d:%02d:%02d pm\n", hours, minutes, seconds);
-	}
-	else {			//after midday 
-		printf("Time is : %02d:%02d:%02d pm\n", hours -12, minutes, seconds);
-	}
-
-}
 
 int free_memory(){
 	//Detach from the memory segment
@@ -236,7 +216,6 @@ int free_memory(){
 void sighandler(int signal){
 	killpg(shm_data_ptr->pgid, SIGTERM);
 	printf("\nTime children processes killed:");
-	readTheClock();
 
 	int status;
 	if(waitpid(pid, &status, 0) != -1) { 
@@ -274,7 +253,6 @@ void forkMultipleProcesses(int fork_number){
 	//If child was created
 	if(pid == 0) {
 		//Print processes id's
-	//	printf("\nChild process pid is %u\n", getpid());
 		//The first fork sets the process_group_id where all other processes will be associated
 		if(fork_number ==0){
 			shm_data_ptr->pgid = getpid();
@@ -283,10 +261,7 @@ void forkMultipleProcesses(int fork_number){
 		else{
 			setpgid(0, shm_data_ptr->pgid);
 		}
-	//	printf("\n Stored process_group_id as :%d", shm_data_ptr->pgid);
-	//	printf("\nParent of child process pid is %u\n", getppid());
-	//	printf("\nChild process going to palin\n");
-	//	read_the_clock();
+		
 		sleep(1);
 		
 		//Before passing id to palin, need to convert argument to a string
@@ -295,32 +270,12 @@ void forkMultipleProcesses(int fork_number){
 		
 		execl("./palin", "palin", argument, NULL);
 	
-		//while(1);	//go into infinite loop to test parent termination
 	}
-	//If failed to create a new process then return with error message
-/*	else if(pid == - 1) {
-		perror("\nERROR: Could not create child process"); 
-	}
-	//Main (parent) process after fork succeeds
-	else { 
-		
-	//	int returnStatus;
-	//	waitpid(pid, &returnStatus, 0);	//Parent process waits here for child to terminate
-
-		//Print process id's		
-		//printf("\nParent of parent process is %u\n", getppid());
-		//printf("\nParent process is %u\n", getpid());
-	
-		printf("\nParent will exit program\n");
-	//	read_the_clock();	
-		exit(0);
-	}*/
 
 }
 
 
 void storeWordsFromFile(char *fileName){
-//	printf("\n In store words from file function");
 	//Open file
 	FILE *fptr;
 	if((fptr = fopen(fileName, "r")) == NULL){
@@ -350,8 +305,6 @@ void storeWordsFromFile(char *fileName){
 		shm_data_ptr->id = index;
 
 		forkMultipleProcesses(shm_data_ptr->id);
-	//	printf("\nWord is :%s", shm_data_ptr->words[index]);
-	//	printf("\nIs palindrome: %d", isPalindrome(words[index]));
 		index++;
 	}
 
